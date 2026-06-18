@@ -4,9 +4,10 @@ import { requireCursorKey } from "./client";
 const CURSOR_API_BASE = "https://api.cursor.com/v1";
 const CACHE_TTL_MS = 60_000;
 const MAX_AGENT_ARTIFACT_SCANS = 5;
+const ARTIFACT_WINDOW_MONTHS = 6;
 
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
-const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "mov"]);
+const IMAGE_EXTENSIONS = new Set(["avif", "gif", "jpeg", "jpg", "png", "svg", "webp"]);
+const VIDEO_EXTENSIONS = new Set(["m4v", "mov", "mp4", "webm"]);
 
 interface ArtifactCache {
   items: GalleryArtifact[];
@@ -23,11 +24,13 @@ interface CursorArtifact {
 interface CursorAgentSummary {
   agentId: string;
   name: string;
+  createdAt?: string;
 }
 
 interface CursorAgentListItem {
   id: string;
   name: string;
+  createdAt?: string;
 }
 
 interface CursorAgentListResponse {
@@ -78,12 +81,15 @@ export function mimeFromPath(path: string): string {
   const extension = getExtension(path);
 
   const mimeTypes: Record<string, string> = {
+    avif: "image/avif",
     gif: "image/gif",
     jpeg: "image/jpeg",
     jpg: "image/jpeg",
+    m4v: "video/x-m4v",
     mov: "video/quicktime",
     mp4: "video/mp4",
     png: "image/png",
+    svg: "image/svg+xml",
     webm: "video/webm",
     webp: "image/webp",
   };
@@ -170,10 +176,13 @@ async function listCloudAgents(apiKey: string): Promise<CursorAgentSummary[]> {
 
     const page = await requestCursor<CursorAgentListResponse>(`/agents?${params}`, apiKey);
 
+    const artifactEligibleAgents = page.items.filter(agent => isWithinArtifactWindow(agent.createdAt));
+
     agents.push(
-      ...page.items.map(agent => ({
+      ...artifactEligibleAgents.map(agent => ({
         agentId: agent.id,
         name: agent.name,
+        createdAt: agent.createdAt,
       })),
     );
     cursor = page.nextCursor;
@@ -211,6 +220,10 @@ async function listAgentMediaArtifacts(
       ];
     });
   } catch (error) {
+    if (isArtifactWindowError(error)) {
+      return [];
+    }
+
     console.warn(`Failed to list artifacts for ${agentSummary.agentId}:`, error);
     return [];
   }
@@ -250,6 +263,27 @@ function validateArtifactPath(path: string): void {
   if (!path.startsWith("artifacts/")) {
     throw new Error("Artifact path must be under artifacts/.");
   }
+}
+
+function isWithinArtifactWindow(createdAt: string | undefined): boolean {
+  if (!createdAt) {
+    return true;
+  }
+
+  const createdAtDate = new Date(createdAt);
+
+  if (Number.isNaN(createdAtDate.getTime())) {
+    return true;
+  }
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - ARTIFACT_WINDOW_MONTHS);
+
+  return createdAtDate >= cutoff;
+}
+
+function isArtifactWindowError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("Artifacts are only available for agents created within the last 6 months");
 }
 
 async function requestCursor<T>(path: string, apiKey: string): Promise<T> {

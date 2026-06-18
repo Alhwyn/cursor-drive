@@ -2,7 +2,7 @@
 
 @layer base {
   :root {
-    @apply bg-[#09090b] text-[rgba(255,255,255,0.87)] font-sans;
+    @apply bg-[#f3f3f3] text-[#1e1e1e] font-sans;
   }
 
   body {
@@ -12,19 +12,6 @@
   #root {
     @apply min-h-screen;
   }
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.75;
-  background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.2), transparent 32rem),
-    radial-gradient(circle at 80% 10%, rgba(168, 85, 247, 0.18), transparent 28rem),
-    radial-gradient(circle at 50% 100%, rgba(20, 184, 166, 0.12), transparent 34rem);
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion) {

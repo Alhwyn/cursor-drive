@@ -4,6 +4,10 @@ import {
   listAgentsHandler,
   listArtifactsHandler,
 } from "./api/artifacts";
+import {
+  downloadLocalAssetHandler,
+  listLocalAssetsHandler,
+} from "./api/localAssets";
 import index from "./index.html";
 
 const server = serve({
@@ -16,6 +20,14 @@ const server = serve({
 
     "/api/artifacts/download": {
       GET: downloadArtifactHandler,
+    },
+
+    "/api/local-assets": {
+      GET: listLocalAssetsHandler,
+    },
+
+    "/api/local-assets/download": {
+      GET: downloadLocalAssetHandler,
     },
 
     "/api/agents": {

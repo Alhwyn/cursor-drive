@@ -1,11 +1,11 @@
 import type { GalleryArtifact } from "../types/artifacts";
 
 export function getArtifactKey(artifact: GalleryArtifact): string {
-  return `${artifact.agentId}:${artifact.path}`;
+  return `${getArtifactSource(artifact)}:${artifact.agentId}:${artifact.path}`;
 }
 
 export function getRepositoryKey(artifact: GalleryArtifact): string {
-  return artifact.repositoryName ?? artifact.agentId;
+  return `${getArtifactSource(artifact)}:${artifact.repositoryName ?? artifact.agentId}`;
 }
 
 export function getRepositoryName(artifact: GalleryArtifact): string {
@@ -17,12 +17,25 @@ export function getFilename(path: string): string {
 }
 
 export function getDownloadUrl(artifact: GalleryArtifact): string {
+  if (getArtifactSource(artifact) === "local") {
+    const params = new URLSearchParams({
+      project: artifact.agentId,
+      path: artifact.path,
+    });
+
+    return `/api/local-assets/download?${params.toString()}`;
+  }
+
   const params = new URLSearchParams({
     agentId: artifact.agentId,
     path: artifact.path,
   });
 
   return `/api/artifacts/download?${params.toString()}`;
+}
+
+export function getArtifactSource(artifact: GalleryArtifact): NonNullable<GalleryArtifact["source"]> {
+  return artifact.source ?? "cloud";
 }
 
 export function formatRelativeTime(value: string): string {

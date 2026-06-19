@@ -1,6 +1,8 @@
 export type MediaKind = "image" | "video";
+export type ArtifactSource = "cloud" | "local";
 
 export interface GalleryArtifact {
+  source?: ArtifactSource;
   agentId: string;
   agentName: string;
   repositoryName?: string;

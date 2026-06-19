@@ -220,6 +220,7 @@ async function listAgentMediaArtifacts(
 
       return [
         {
+          source: "cloud",
           agentId: agentSummary.agentId,
           agentName: agentSummary.name,
           repositoryName,

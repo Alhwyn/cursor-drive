@@ -4,6 +4,14 @@ export function getArtifactKey(artifact: GalleryArtifact): string {
   return `${artifact.agentId}:${artifact.path}`;
 }
 
+export function getRepositoryKey(artifact: GalleryArtifact): string {
+  return artifact.repositoryName ?? artifact.agentId;
+}
+
+export function getRepositoryName(artifact: GalleryArtifact): string {
+  return artifact.repositoryName ?? artifact.agentName;
+}
+
 export function getFilename(path: string): string {
   return path.split("/").at(-1) || path;
 }

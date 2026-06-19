@@ -38,6 +38,12 @@ interface CursorAgentListResponse {
   nextCursor?: string;
 }
 
+interface CursorAgentDetail {
+  id: string;
+  name: string;
+  repos?: Array<{ url: string }>;
+}
+
 interface CursorArtifactListResponse {
   items: CursorArtifact[];
 }
@@ -196,10 +202,14 @@ async function listAgentMediaArtifacts(
   apiKey: string,
 ): Promise<GalleryArtifact[]> {
   try {
-    const { items: artifacts } = await requestCursor<CursorArtifactListResponse>(
-      `/agents/${encodeURIComponent(agentSummary.agentId)}/artifacts`,
-      apiKey,
-    );
+    const [artifactResponse, repositoryName] = await Promise.all([
+      requestCursor<CursorArtifactListResponse>(
+        `/agents/${encodeURIComponent(agentSummary.agentId)}/artifacts`,
+        apiKey,
+      ),
+      getAgentRepositoryName(agentSummary.agentId, apiKey),
+    ]);
+    const { items: artifacts } = artifactResponse;
 
     return artifacts.flatMap(artifact => {
       const kind = getMediaKind(artifact.path);
@@ -212,6 +222,7 @@ async function listAgentMediaArtifacts(
         {
           agentId: agentSummary.agentId,
           agentName: agentSummary.name,
+          repositoryName,
           path: artifact.path,
           sizeBytes: artifact.sizeBytes,
           updatedAt: artifact.updatedAt,
@@ -227,6 +238,30 @@ async function listAgentMediaArtifacts(
     console.warn(`Failed to list artifacts for ${agentSummary.agentId}:`, error);
     return [];
   }
+}
+
+async function getAgentRepositoryName(
+  agentId: string,
+  apiKey: string,
+): Promise<string | undefined> {
+  try {
+    const agent = await requestCursor<CursorAgentDetail>(
+      `/agents/${encodeURIComponent(agentId)}`,
+      apiKey,
+    );
+
+    const repositoryUrl = agent.repos?.[0]?.url;
+    return repositoryUrl ? formatRepositoryName(repositoryUrl) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatRepositoryName(url: string): string {
+  const normalized = url.replace(/\.git$/, "").trim();
+  const parts = normalized.replace(/^https?:\/\//, "").split("/").filter(Boolean);
+
+  return parts.at(-1) ?? normalized;
 }
 
 async function mapWithConcurrency<T, R>(

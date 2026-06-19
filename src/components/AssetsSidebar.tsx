@@ -423,12 +423,12 @@ function getPreviewMediaHeight(aspectRatio: number | null): number {
     return PREVIEW_MEDIA_DEFAULT_HEIGHT;
   }
 
-  const {Math.round(
+  return Math.round(
     Math.min(
       PREVIEW_MEDIA_MAX_HEIGHT,
       Math.max(PREVIEW_MEDIA_MIN_HEIGHT, PREVIEW_MEDIA_WIDTH / aspectRatio),
     ),
-  )};
+  );
 }
 
 function SidebarMediaPreview({
@@ -490,7 +490,7 @@ function SidebarMediaPreview({
     );
 
     setPosition({ left, top });
-  }, [cursorX, cursorY, artifact.agentId, artifact.path]);
+  }, [cursorX, cursorY, artifact.agentId, artifact.path, mediaHeight]);
 
   return (
     <section
@@ -500,24 +500,27 @@ function SidebarMediaPreview({
       onMouseEnter={onHover}
       onMouseLeave={onHoverEnd}
     >
-      <div className="overflow-hidden rounded-md border border-[#e0e0e0] bg-[#ececec]">
-        <div className="relative aspect-video w-full">
-          {artifact.kind === "image" ? (
-            <img
-              src={downloadUrl}
-              alt={filename}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <video
-              src={downloadUrl}
-              preload="metadata"
-              muted
-              playsInline
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          )}
-        </div>
+      <div
+        className="relative w-full overflow-hidden rounded-md border border-[#e0e0e0]"
+        style={{ height: mediaHeight }}
+      >
+        {artifact.kind === "image" ? (
+          <img
+            src={downloadUrl}
+            alt={filename}
+            onLoad={handleMediaLoad}
+            className="size-full object-cover object-center"
+          />
+        ) : (
+          <video
+            src={downloadUrl}
+            preload="metadata"
+            muted
+            playsInline
+            onLoadedMetadata={handleMediaLoad}
+            className="size-full object-cover object-center"
+          />
+        )}
       </div>
       <p className="mt-1.5 truncate px-0.5 text-[11px] text-[#6f6f6f]" title={filename}>
         {filename}

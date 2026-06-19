@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { GalleryArtifact, MediaKind } from "../types/artifacts";
-import { formatRelativeTime, getArtifactKey, getFilename, getRepositoryKey } from "../utils/artifacts";
+import { formatRelativeTime, getArtifactKey, getDownloadUrl, getFilename, getRepositoryKey } from "../utils/artifacts";
 
 type Filter = "all" | MediaKind;
 
@@ -50,6 +50,36 @@ export function AssetsSidebar({
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedContexts, setExpandedContexts] = useState<Record<string, boolean>>({});
   const [showAllContexts, setShowAllContexts] = useState<Record<string, boolean>>({});
+  const [hoveredArtifact, setHoveredArtifact] = useState<GalleryArtifact | null>(null);
+  const hoverClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPreview = (artifact: GalleryArtifact) => {
+    if (hoverClearTimeoutRef.current) {
+      clearTimeout(hoverClearTimeoutRef.current);
+      hoverClearTimeoutRef.current = null;
+    }
+
+    setHoveredArtifact(artifact);
+  };
+
+  const scheduleHidePreview = () => {
+    if (hoverClearTimeoutRef.current) {
+      clearTimeout(hoverClearTimeoutRef.current);
+    }
+
+    hoverClearTimeoutRef.current = setTimeout(() => {
+      setHoveredArtifact(null);
+      hoverClearTimeoutRef.current = null;
+    }, 120);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverClearTimeoutRef.current) {
+        clearTimeout(hoverClearTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const filteredArtifacts = useMemo(() => {
     let items =
@@ -123,8 +153,9 @@ export function AssetsSidebar({
         />
       </div>
 
-      <div className="relative min-h-0 flex-1">
-        <div className="h-full min-h-0 overflow-y-auto px-1.5 pb-3">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="relative min-h-0 flex-1">
+          <div className="h-full min-h-0 overflow-y-auto px-1.5 pb-3">
         <div className="px-1.5 py-1">
           <span className="text-[13px] font-medium text-[#1e1e1e]">Workspaces</span>
         </div>
@@ -186,6 +217,8 @@ export function AssetsSidebar({
                             key={getArtifactKey(artifact)}
                             artifact={artifact}
                             onSelect={() => onSelect(artifact)}
+                            onHover={() => showPreview(artifact)}
+                            onHoverEnd={scheduleHidePreview}
                           />
                         ),
                       )}
@@ -209,10 +242,19 @@ export function AssetsSidebar({
           </div>
         )}
         </div>
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#f3f3f3] via-[#f3f3f3]/80 to-transparent"
-          aria-hidden="true"
-        />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#f3f3f3] via-[#f3f3f3]/80 to-transparent"
+            aria-hidden="true"
+          />
+        </div>
+
+        {hoveredArtifact ? (
+          <SidebarMediaPreview
+            artifact={hoveredArtifact}
+            onHover={() => showPreview(hoveredArtifact)}
+            onHoverEnd={scheduleHidePreview}
+          />
+        ) : null}
       </div>
         </>
       )}
@@ -285,8 +327,8 @@ function WorkspaceContext({
         onClick={onToggle}
         className="flex w-full items-center gap-1 rounded-md py-0.5 pr-2 pl-1 text-left hover:bg-[#ebebeb]"
       >
-        <span className="grid size-4 shrink-0 place-items-center text-[#b0b0b0]">
-          <ChevronDownIcon className={`scale-75 ${expanded ? "" : "-rotate-90"}`} />
+        <span className="grid size-6 shrink-0 place-items-center text-[#8a8a8a]">
+          <ChevronDownIcon className={expanded ? "" : "-rotate-90"} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[12px] text-[#6f6f6f]">{name}</span>
         <span className="shrink-0 text-[11px] text-[#a3a3a3]">{count}</span>
@@ -300,9 +342,13 @@ function WorkspaceContext({
 function WorkspaceFileRow({
   artifact,
   onSelect,
+  onHover,
+  onHoverEnd,
 }: {
   artifact: GalleryArtifact;
   onSelect: () => void;
+  onHover?: () => void;
+  onHoverEnd?: () => void;
 }) {
   const filename = getFilename(artifact.path);
 
@@ -310,6 +356,10 @@ function WorkspaceFileRow({
     <button
       type="button"
       onClick={onSelect}
+      onMouseEnter={onHover}
+      onMouseLeave={onHoverEnd}
+      onFocus={onHover}
+      onBlur={onHoverEnd}
       title={filename}
       className="flex w-full items-center gap-2 rounded-md py-0.5 pr-2 pl-1 text-left font-normal transition hover:bg-[#ebebeb]"
     >
@@ -318,6 +368,50 @@ function WorkspaceFileRow({
         {formatRelativeTime(artifact.updatedAt)}
       </span>
     </button>
+  );
+}
+
+function SidebarMediaPreview({
+  artifact,
+  onHover,
+  onHoverEnd,
+}: {
+  artifact: GalleryArtifact;
+  onHover: () => void;
+  onHoverEnd: () => void;
+}) {
+  const downloadUrl = getDownloadUrl(artifact);
+  const filename = getFilename(artifact.path);
+
+  return (
+    <section
+      className="shrink-0 border-t border-[#e0e0e0] bg-[#f3f3f3] p-2"
+      onMouseEnter={onHover}
+      onMouseLeave={onHoverEnd}
+    >
+      <div className="overflow-hidden rounded-md border border-[#e0e0e0] bg-[#ececec]">
+        <div className="relative aspect-video w-full">
+          {artifact.kind === "image" ? (
+            <img
+              src={downloadUrl}
+              alt={filename}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <video
+              src={downloadUrl}
+              preload="metadata"
+              muted
+              playsInline
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+        </div>
+      </div>
+      <p className="mt-1.5 truncate px-0.5 text-[11px] text-[#6f6f6f]" title={filename}>
+        {filename}
+      </p>
+    </section>
   );
 }
 

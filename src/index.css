@@ -21,3 +21,49 @@
     animation: none !important;
   }
 }
+
+@keyframes artifact-modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes artifact-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modal-skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@layer utilities {
+  .animate-modal-backdrop-in {
+    animation: artifact-modal-backdrop-in 150ms ease-out both;
+  }
+
+  .animate-modal-panel-in {
+    animation: artifact-modal-panel-in 180ms ease-out both;
+  }
+
+  .animate-modal-skeleton-shimmer {
+    animation: modal-skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+}

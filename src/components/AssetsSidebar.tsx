@@ -78,14 +78,23 @@ export function AssetsSidebar({
   const isContextExpanded = (contextKey: string) => expandedContexts[contextKey] ?? true;
 
   return (
-    <div className="flex h-full flex-col bg-[#f3f3f3] text-[13px] text-[#1e1e1e]">
-      <div className="flex shrink-0 items-center px-2.5 py-2">
-        <div className="flex items-center gap-0.5">
-          <ToolbarButton label="Toggle sidebar" onClick={onToggleSidebar}>
+    <div className="flex h-full flex-col bg-[#f3f3f3] text-[13px] font-normal text-[#1e1e1e]">
+      <div
+        className={`flex w-full shrink-0 ${
+          collapsed ? "flex-col items-center px-2 py-2.5" : "items-center px-2.5 py-2"
+        }`}
+      >
+        <div
+          className={`flex w-full ${
+            collapsed ? "flex-col items-center gap-0.5" : "flex-row items-center gap-0.5"
+          }`}
+        >
+          <ToolbarButton label="Toggle sidebar" onClick={onToggleSidebar} collapsed={collapsed}>
             <SidebarIcon />
           </ToolbarButton>
           <ToolbarButton
             label="Search assets"
+            collapsed={collapsed}
             onClick={() => {
               if (collapsed) {
                 onToggleSidebar?.();
@@ -114,7 +123,8 @@ export function AssetsSidebar({
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3">
+      <div className="relative min-h-0 flex-1">
+        <div className="h-full min-h-0 overflow-y-auto px-1.5 pb-3">
         <div className="px-1.5 py-1">
           <span className="text-[13px] font-medium text-[#1e1e1e]">Workspaces</span>
         </div>
@@ -198,6 +208,11 @@ export function AssetsSidebar({
             ))}
           </div>
         )}
+        </div>
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#f3f3f3] via-[#f3f3f3]/80 to-transparent"
+          aria-hidden="true"
+        />
       </div>
         </>
       )}
@@ -296,9 +311,9 @@ function WorkspaceFileRow({
       type="button"
       onClick={onSelect}
       title={filename}
-      className="flex w-full items-center gap-2 rounded-md py-0.5 pr-2 pl-1 text-left transition hover:bg-[#ebebeb]"
+      className="flex w-full items-center gap-2 rounded-md py-0.5 pr-2 pl-1 text-left font-normal transition hover:bg-[#ebebeb]"
     >
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[#1e1e1e]">{filename}</span>
+      <span className="min-w-0 flex-1 truncate text-[12px] font-normal text-[#6f6f6f]">{filename}</span>
       <span className="shrink-0 text-[11px] text-[#a3a3a3]">
         {formatRelativeTime(artifact.updatedAt)}
       </span>
@@ -336,12 +351,14 @@ function ToolbarButton({
   onClick,
   disabled,
   active,
+  collapsed,
 }: {
   label: string;
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
+  collapsed?: boolean;
 }) {
   return (
     <button
@@ -349,7 +366,9 @@ function ToolbarButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`grid size-7 place-items-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`grid place-items-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        collapsed ? "size-8 w-11" : "size-7"
+      } ${
         active
           ? "bg-[#e4e4e4] text-[#1e1e1e]"
           : "text-[#6f6f6f] hover:bg-[#e8e8e8] hover:text-[#1e1e1e]"

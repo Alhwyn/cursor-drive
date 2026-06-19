@@ -21,7 +21,7 @@ export function ArtifactCard({ artifact, selected = false, onOpen }: ArtifactCar
       <button
         type="button"
         onClick={() => onOpen?.()}
-        className="relative block aspect-video w-full cursor-pointer overflow-hidden bg-[#f0f0f0] transition hover:opacity-95"
+        className="group relative block aspect-video w-full cursor-pointer overflow-hidden bg-[#f0f0f0]"
         aria-label={`Open ${filename}`}
       >
         {artifact.kind === "image" ? (
@@ -40,16 +40,19 @@ export function ArtifactCard({ artifact, selected = false, onOpen }: ArtifactCar
             className="pointer-events-none absolute inset-0 h-full w-full object-cover"
           />
         )}
-      </button>
 
-      <div className="border-t border-[#ececec] px-2.5 py-1.5 text-left">
-        <p className="min-w-0 truncate text-xs font-medium text-[#1e1e1e]" title={filename}>
-          {filename}
-        </p>
-        <p className="truncate text-[11px] leading-tight text-[#8a8a8a]" title={artifact.agentName}>
-          {artifact.agentName}
-        </p>
-      </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/45 to-transparent px-2.5 pb-2 pt-10 text-left opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <p className="min-w-0 truncate text-xs font-medium text-white" title={filename}>
+            {filename}
+          </p>
+          <p
+            className="truncate text-[11px] leading-tight text-white/80"
+            title={artifact.agentName}
+          >
+            {artifact.agentName}
+          </p>
+        </div>
+      </button>
     </article>
   );
 }

@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import cursorCube from "../assets/cursor-cube.png";
 import type { GalleryArtifact } from "../types/artifacts";
 import { getDownloadUrl, getFilename } from "../utils/artifacts";
 
@@ -14,6 +15,11 @@ interface ArtifactModalProps {
 export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: ArtifactModalProps) {
   const downloadUrl = getDownloadUrl(artifact);
   const filename = getFilename(artifact.path);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [artifact.agentId, artifact.path, downloadUrl]);
 
   useEffect(() => {
     if (!open) {
@@ -55,7 +61,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+      className="fixed inset-0 z-50 flex p-2 sm:p-3"
       role="dialog"
       aria-modal="true"
       aria-label={filename}
@@ -63,15 +69,15 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
       <button
         type="button"
         aria-label="Close preview"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 animate-modal-backdrop-in bg-black/60"
         onClick={onClose}
       />
 
       <div
-        className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="animate-modal-panel-in relative flex h-full w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
-        <header className="flex shrink-0 items-center gap-3 border-b border-[#ececec] px-4 py-3">
+        <header className="flex shrink-0 items-center gap-3 border-b border-[#ececec] px-4 py-2.5">
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-[#1e1e1e]" title={filename}>
             {filename}
           </p>
@@ -97,28 +103,57 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 items-center justify-center bg-[#f7f7f7] p-4">
-          {artifact.kind === "image" ? (
-            <img
-              key={artifact.path}
-              src={downloadUrl}
-              alt={filename}
-              className="max-h-[calc(100vh-8rem)] max-w-full object-contain"
-            />
-          ) : (
-            <video
-              key={artifact.path}
-              src={downloadUrl}
-              controls
-              autoPlay
-              playsInline
-              className="max-h-[calc(100vh-8rem)] max-w-full object-contain"
-            />
-          )}
+        <div className="relative min-h-0 flex-1 bg-[#111]">
+          {!loaded ? <ModalMediaSkeleton /> : null}
+
+          <div
+            className={`absolute inset-0 transition-opacity duration-200 ${
+              loaded ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            {artifact.kind === "image" ? (
+              <img
+                key={artifact.path}
+                src={downloadUrl}
+                alt={filename}
+                onLoad={() => setLoaded(true)}
+                onError={() => setLoaded(true)}
+                ref={node => {
+                  if (node?.complete) {
+                    setLoaded(true);
+                  }
+                }}
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <video
+                key={artifact.path}
+                src={downloadUrl}
+                controls
+                autoPlay
+                playsInline
+                onLoadedData={() => setLoaded(true)}
+                onError={() => setLoaded(true)}
+                className="h-full w-full object-contain"
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>,
     document.body,
+  );
+}
+
+function ModalMediaSkeleton() {
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[#1a1a1a]"
+      aria-hidden="true"
+    >
+      <div className="animate-modal-skeleton-shimmer absolute inset-0 bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] bg-[length:200%_100%]" />
+      <img src={cursorCube} alt="" className="relative h-20 w-20 opacity-30" />
+    </div>
   );
 }
 

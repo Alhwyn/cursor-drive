@@ -103,12 +103,12 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
           </div>
         </header>
 
-        <div className="relative h-[min(55vh,480px)] min-h-[200px] shrink-0 bg-[#111]">
+        <div className="relative h-[min(55vh,480px)] min-h-[200px] shrink-0 bg-[#f7f7f7]">
           {!loaded ? <ModalMediaSkeleton /> : null}
 
           <div
             className={`absolute inset-0 transition-opacity duration-200 ${
-              loaded ? "opacity-100" : "opacity-0"
+              loaded ? "z-10 opacity-100" : "invisible opacity-0"
             }`}
           >
             {artifact.kind === "image" ? (
@@ -148,11 +148,11 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
 function ModalMediaSkeleton() {
   return (
     <div
-      className="absolute inset-0 flex items-center justify-center overflow-hidden bg-[#1a1a1a]"
+      className="absolute inset-0 z-20 flex items-center justify-center overflow-hidden bg-[#f7f7f7]"
       aria-hidden="true"
     >
-      <div className="animate-modal-skeleton-shimmer absolute inset-0 bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] bg-[length:200%_100%]" />
-      <img src={cursorCube} alt="" className="relative h-20 w-20 opacity-30" />
+      <div className="animate-modal-skeleton-shimmer absolute inset-0 bg-gradient-to-r from-[#eeeeee] via-[#ffffff] to-[#eeeeee] bg-[length:200%_100%]" />
+      <img src={cursorCube} alt="" className="relative h-20 w-20 opacity-35" />
     </div>
   );
 }

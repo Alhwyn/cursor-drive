@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import type { ArtifactSource, GalleryArtifact, MediaKind } from "../types/artifacts";
 import {
+  filterArtifactsByQuery,
   formatRelativeTime,
   getArtifactKey,
   getDownloadUrl,
@@ -41,7 +42,7 @@ interface AssetsSidebarProps {
   query: string;
   selectedRepositoryKey: string | null;
   sourceFilter: SourceFilter;
-  onQueryChange: (query: string) => void;
+  onOpenSearch: () => void;
   onSelect: (artifact: GalleryArtifact) => void;
   onRepositorySelect: (repositoryKey: string | null) => void;
   onSourceFilterChange: (source: SourceFilter) => void;
@@ -51,8 +52,7 @@ interface AssetsSidebarProps {
 
 const FOLDER_PREVIEW_LIMIT = 12;
 const PREVIEW_WIDTH = 220;
-const PREVIEW_PADDING = 16;
-const PREVIEW_MEDIA_WIDTH = PREVIEW_WIDTH - PREVIEW_PADDING;
+const PREVIEW_MEDIA_WIDTH = PREVIEW_WIDTH;
 const PREVIEW_MEDIA_MIN_HEIGHT = 72;
 const PREVIEW_MEDIA_MAX_HEIGHT = 160;
 const PREVIEW_MEDIA_DEFAULT_HEIGHT = Math.round((PREVIEW_MEDIA_WIDTH * 9) / 16);
@@ -66,15 +66,13 @@ export function AssetsSidebar({
   query,
   selectedRepositoryKey,
   sourceFilter,
-  onQueryChange,
+  onOpenSearch,
   onSelect,
   onRepositorySelect,
   onSourceFilterChange,
   onToggleSidebar,
   collapsed = false,
 }: AssetsSidebarProps) {
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedContexts, setExpandedContexts] = useState<Record<string, boolean>>({});
   const [showAllContexts, setShowAllContexts] = useState<Record<string, boolean>>({});
@@ -121,7 +119,7 @@ export function AssetsSidebar({
     items =
       filter === "all" ? items : items.filter(artifact => artifact.kind === filter);
 
-    return filterItems(items, query);
+    return filterArtifactsByQuery(items, query);
   }, [artifacts, filter, query, sourceFilter]);
 
   const repositoryGroups = useMemo(() => groupByRepository(filteredArtifacts), [filteredArtifacts]);
@@ -143,16 +141,6 @@ export function AssetsSidebar({
   const isExpanded = (groupKey: string) => expandedGroups[groupKey] ?? true;
   const isContextExpanded = (contextKey: string) => expandedContexts[contextKey] ?? true;
 
-  const openSearch = () => {
-    setSearchOpen(true);
-  };
-
-  useEffect(() => {
-    if (searchOpen && !collapsed) {
-      searchRef.current?.focus();
-    }
-  }, [searchOpen, collapsed]);
-
   return (
     <div className="flex h-full flex-col bg-[#f3f3f3] text-[13px] font-normal text-[#1e1e1e]">
       <div
@@ -170,12 +158,11 @@ export function AssetsSidebar({
           </ToolbarButton>
           <ToolbarButton
             label="Search assets"
-            active={searchOpen}
             onClick={() => {
               if (collapsed) {
                 onToggleSidebar?.();
               }
-              openSearch();
+              onOpenSearch();
             }}
           >
             <SearchIcon />
@@ -185,26 +172,6 @@ export function AssetsSidebar({
 
       {collapsed ? null : (
         <>
-      {searchOpen ? (
-        <div className="px-2 pb-1">
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            onChange={event => onQueryChange(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setSearchOpen(false);
-                searchRef.current?.blur();
-              }
-            }}
-            placeholder="Search assets..."
-            className="w-full rounded-md border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-[13px] text-[#1e1e1e] placeholder:text-[#8a8a8a] outline-none focus:border-[#b8b8b8]"
-          />
-        </div>
-      ) : null}
-
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1">
           <div className="sidebar-scroll h-full min-h-0 overflow-y-auto px-1.5 pb-3">
@@ -525,21 +492,18 @@ function SidebarMediaPreview({
   return (
     <section
       ref={previewRef}
-      className="pointer-events-auto fixed z-50 w-[220px] rounded-md border border-[#e0e0e0] bg-[#f3f3f3] p-2 shadow-lg"
+      className="pointer-events-auto fixed z-50 overflow-hidden rounded-md border border-[#e0e0e0] bg-[#f3f3f3] shadow-lg"
       style={{ left: position.left, top: position.top, width: PREVIEW_WIDTH }}
       onMouseEnter={onHover}
       onMouseLeave={onHoverEnd}
     >
-      <div
-        className="relative w-full overflow-hidden rounded-md border border-[#e0e0e0]"
-        style={{ height: mediaHeight }}
-      >
+      <div className="relative w-full overflow-hidden" style={{ height: mediaHeight }}>
         {artifact.kind === "image" ? (
           <img
             src={downloadUrl}
             alt={filename}
             onLoad={handleMediaLoad}
-            className="size-full object-cover object-center"
+            className="block size-full object-cover object-center"
           />
         ) : (
           <video
@@ -548,11 +512,11 @@ function SidebarMediaPreview({
             muted
             playsInline
             onLoadedMetadata={handleMediaLoad}
-            className="size-full object-cover object-center"
+            className="block size-full object-cover object-center"
           />
         )}
       </div>
-      <p className="mt-1.5 truncate px-0.5 text-[11px] text-[#6f6f6f]" title={filename}>
+      <p className="truncate px-2 py-1 text-[11px] text-[#6f6f6f]" title={filename}>
         {filename}
       </p>
     </section>
@@ -663,24 +627,6 @@ function visibleItems(items: GalleryArtifact[], showAll: boolean): GalleryArtifa
   }
 
   return items.slice(0, FOLDER_PREVIEW_LIMIT);
-}
-
-function filterItems(items: GalleryArtifact[], query: string): GalleryArtifact[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return items;
-  }
-
-  return items.filter(artifact => {
-    const filename = getFilename(artifact.path).toLowerCase();
-    const agentName = artifact.agentName.toLowerCase();
-    const repositoryName = artifact.repositoryName?.toLowerCase() ?? "";
-    return (
-      filename.includes(normalized) ||
-      agentName.includes(normalized) ||
-      repositoryName.includes(normalized)
-    );
-  });
 }
 
 export function SidebarIcon() {

@@ -38,6 +38,30 @@ export function getArtifactSource(artifact: GalleryArtifact): NonNullable<Galler
   return artifact.source ?? "cloud";
 }
 
+export function matchesArtifactQuery(artifact: GalleryArtifact, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  const filename = getFilename(artifact.path).toLowerCase();
+  const agentName = artifact.agentName.toLowerCase();
+  const repositoryName = artifact.repositoryName?.toLowerCase() ?? "";
+
+  return (
+    filename.includes(normalized) ||
+    agentName.includes(normalized) ||
+    repositoryName.includes(normalized)
+  );
+}
+
+export function filterArtifactsByQuery(
+  artifacts: GalleryArtifact[],
+  query: string,
+): GalleryArtifact[] {
+  return artifacts.filter(artifact => matchesArtifactQuery(artifact, query));
+}
+
 export function formatRelativeTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

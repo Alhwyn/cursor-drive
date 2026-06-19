@@ -7,15 +7,16 @@ import type {
   MediaKind,
 } from "../types/artifacts";
 import {
+  filterArtifactsByQuery,
   formatDate,
   getArtifactKey,
   getArtifactSource,
-  getFilename,
   getRepositoryKey,
   getRepositoryName,
 } from "../utils/artifacts";
 import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactModal } from "./ArtifactModal";
+import { AssetSearchModal } from "./AssetSearchModal";
 import { AssetsSidebar } from "./AssetsSidebar";
 import { EmptyAssetsState } from "./EmptyAssetsState";
 import { PageTitle } from "./PageTitle";
@@ -46,6 +47,7 @@ export function ArtifactGallery() {
   const [modalArtifact, setModalArtifact] = useState<GalleryArtifact | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRepositoryKey, setSelectedRepositoryKey] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
@@ -100,28 +102,32 @@ export function ArtifactGallery() {
     void loadArtifacts();
   }, [loadArtifacts]);
 
-  const kindAndQueryFiltered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, []);
+
+  const searchableArtifacts = useMemo(() => {
     let items = sourceFilter === "all"
       ? artifacts
       : artifacts.filter(artifact => getArtifactSource(artifact) === sourceFilter);
-    items = filter === "all" ? items : items.filter(artifact => artifact.kind === filter);
 
-    if (normalized) {
-      items = items.filter(artifact => {
-        const filename = getFilename(artifact.path).toLowerCase();
-        const agentName = artifact.agentName.toLowerCase();
-        const repositoryName = artifact.repositoryName?.toLowerCase() ?? "";
-        return (
-          filename.includes(normalized) ||
-          agentName.includes(normalized) ||
-          repositoryName.includes(normalized)
-        );
-      });
-    }
+    return filter === "all" ? items : items.filter(artifact => artifact.kind === filter);
+  }, [artifacts, filter, sourceFilter]);
 
-    return items;
-  }, [artifacts, filter, query, sourceFilter]);
+  const kindAndQueryFiltered = useMemo(() => {
+    return filterArtifactsByQuery(searchableArtifacts, query);
+  }, [query, searchableArtifacts]);
 
   const filteredArtifacts = useMemo(() => {
     if (!selectedRepositoryKey) {
@@ -188,6 +194,24 @@ export function ArtifactGallery() {
     setModalArtifact(null);
   }, []);
 
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery("");
+  }, []);
+
+  const handleSearchSelect = useCallback(
+    (artifact: GalleryArtifact) => {
+      handleSidebarSelect(artifact);
+      setSearchOpen(false);
+      setQuery("");
+    },
+    [handleSidebarSelect],
+  );
+
   const goToPrevious = useCallback(() => {
     if (modalIndex <= 0) {
       return;
@@ -227,7 +251,7 @@ export function ArtifactGallery() {
             query={query}
             selectedRepositoryKey={selectedRepositoryKey}
             sourceFilter={sourceFilter}
-            onQueryChange={setQuery}
+            onOpenSearch={openSearch}
             onSelect={handleSidebarSelect}
             onRepositorySelect={setSelectedRepositoryKey}
             onSourceFilterChange={handleSourceFilterChange}
@@ -253,6 +277,13 @@ export function ArtifactGallery() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row lg:hidden">
+                  <button
+                    type="button"
+                    onClick={openSearch}
+                    className="inline-flex items-center justify-center rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-medium text-[#1e1e1e] shadow-sm transition hover:bg-[#f7f7f7]"
+                  >
+                    Search assets
+                  </button>
                   <SegmentedControl
                     options={SOURCE_FILTERS}
                     value={sourceFilter}
@@ -290,6 +321,15 @@ export function ArtifactGallery() {
           </div>
         </main>
       </div>
+
+      <AssetSearchModal
+        open={searchOpen}
+        artifacts={searchableArtifacts}
+        query={query}
+        onQueryChange={setQuery}
+        onSelect={handleSearchSelect}
+        onClose={closeSearch}
+      />
 
       {modalArtifact ? (
         <ArtifactModal

@@ -9,10 +9,17 @@ import {
   type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import type { GalleryArtifact, MediaKind } from "../types/artifacts";
-import { formatRelativeTime, getArtifactKey, getDownloadUrl, getFilename, getRepositoryKey } from "../utils/artifacts";
+import type { ArtifactSource, GalleryArtifact, MediaKind } from "../types/artifacts";
+import {
+  formatRelativeTime,
+  getArtifactKey,
+  getDownloadUrl,
+  getFilename,
+  getRepositoryKey,
+} from "../utils/artifacts";
 
 type Filter = "all" | MediaKind;
+type SourceFilter = "all" | ArtifactSource;
 
 interface ContextGroup {
   contextKey: string;
@@ -33,10 +40,11 @@ interface AssetsSidebarProps {
   loading?: boolean;
   query: string;
   selectedRepositoryKey: string | null;
-  onFilterChange: (filter: Filter) => void;
+  sourceFilter: SourceFilter;
   onQueryChange: (query: string) => void;
   onSelect: (artifact: GalleryArtifact) => void;
   onRepositorySelect: (repositoryKey: string | null) => void;
+  onSourceFilterChange: (source: SourceFilter) => void;
   onToggleSidebar?: () => void;
   collapsed?: boolean;
 }
@@ -57,14 +65,16 @@ export function AssetsSidebar({
   loading,
   query,
   selectedRepositoryKey,
-  onFilterChange,
+  sourceFilter,
   onQueryChange,
   onSelect,
   onRepositorySelect,
+  onSourceFilterChange,
   onToggleSidebar,
   collapsed = false,
 }: AssetsSidebarProps) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedContexts, setExpandedContexts] = useState<Record<string, boolean>>({});
   const [showAllContexts, setShowAllContexts] = useState<Record<string, boolean>>({});
@@ -105,11 +115,14 @@ export function AssetsSidebar({
   }, []);
 
   const filteredArtifacts = useMemo(() => {
-    let items =
-      filter === "all" ? artifacts : artifacts.filter(artifact => artifact.kind === filter);
+    let items = sourceFilter === "all"
+      ? artifacts
+      : artifacts.filter(artifact => (artifact.source ?? "cloud") === sourceFilter);
+    items =
+      filter === "all" ? items : items.filter(artifact => artifact.kind === filter);
 
     return filterItems(items, query);
-  }, [artifacts, filter, query]);
+  }, [artifacts, filter, query, sourceFilter]);
 
   const repositoryGroups = useMemo(() => groupByRepository(filteredArtifacts), [filteredArtifacts]);
 
@@ -130,6 +143,16 @@ export function AssetsSidebar({
   const isExpanded = (groupKey: string) => expandedGroups[groupKey] ?? true;
   const isContextExpanded = (contextKey: string) => expandedContexts[contextKey] ?? true;
 
+  const openSearch = () => {
+    setSearchOpen(true);
+  };
+
+  useEffect(() => {
+    if (searchOpen && !collapsed) {
+      searchRef.current?.focus();
+    }
+  }, [searchOpen, collapsed]);
+
   return (
     <div className="flex h-full flex-col bg-[#f3f3f3] text-[13px] font-normal text-[#1e1e1e]">
       <div
@@ -147,14 +170,12 @@ export function AssetsSidebar({
           </ToolbarButton>
           <ToolbarButton
             label="Search assets"
+            active={searchOpen}
             onClick={() => {
               if (collapsed) {
                 onToggleSidebar?.();
-                requestAnimationFrame(() => searchRef.current?.focus());
-                return;
               }
-
-              searchRef.current?.focus();
+              openSearch();
             }}
           >
             <SearchIcon />
@@ -164,16 +185,25 @@ export function AssetsSidebar({
 
       {collapsed ? null : (
         <>
-      <div className="px-2 pb-1">
-        <input
-          ref={searchRef}
-          type="search"
-          value={query}
-          onChange={event => onQueryChange(event.target.value)}
-          placeholder="Search assets..."
-          className="w-full rounded-md border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-[13px] text-[#1e1e1e] placeholder:text-[#8a8a8a] outline-none focus:border-[#b8b8b8]"
-        />
-      </div>
+      {searchOpen ? (
+        <div className="px-2 pb-1">
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            onChange={event => onQueryChange(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setSearchOpen(false);
+                searchRef.current?.blur();
+              }
+            }}
+            placeholder="Search assets..."
+            className="w-full rounded-md border border-[#dcdcdc] bg-white px-2.5 py-1.5 text-[13px] text-[#1e1e1e] placeholder:text-[#8a8a8a] outline-none focus:border-[#b8b8b8]"
+          />
+        </div>
+      ) : null}
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1">
@@ -182,20 +212,20 @@ export function AssetsSidebar({
           <span className="text-[13px] font-medium text-[#1e1e1e]">Workspaces</span>
         </div>
 
-        <div className="mb-1.5 flex gap-0.5 px-1">
+        <div className="mb-1 flex gap-0.5 px-1">
           {(
             [
               { id: "all", label: "All" },
-              { id: "image", label: "Media" },
-              { id: "video", label: "Videos" },
+              { id: "cloud", label: "Cloud" },
+              { id: "local", label: "Local" },
             ] as const
           ).map(option => (
             <button
               key={option.id}
               type="button"
-              onClick={() => onFilterChange(option.id)}
+              onClick={() => onSourceFilterChange(option.id)}
               className={`rounded px-1.5 py-0.5 text-[11px] transition ${
-                filter === option.id
+                sourceFilter === option.id
                   ? "bg-[#e0e0e0] text-[#1e1e1e]"
                   : "text-[#8a8a8a] hover:text-[#1e1e1e]"
               }`}
@@ -453,7 +483,7 @@ function SidebarMediaPreview({
 
   useEffect(() => {
     setMediaAspectRatio(null);
-  }, [artifact.agentId, artifact.path]);
+  }, [artifact.agentId, artifact.path, artifact.source]);
 
   const handleMediaLoad = (event: SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
     const aspectRatio = getMediaAspectRatio(event.currentTarget);
@@ -490,7 +520,7 @@ function SidebarMediaPreview({
     );
 
     setPosition({ left, top });
-  }, [cursorX, cursorY, artifact.agentId, artifact.path, mediaHeight]);
+  }, [cursorX, cursorY, artifact.agentId, artifact.path, artifact.source, mediaHeight]);
 
   return (
     <section

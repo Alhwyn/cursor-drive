@@ -2,10 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ApiErrorResponse,
   ArtifactListResponse,
+  ArtifactSource,
   GalleryArtifact,
   MediaKind,
 } from "../types/artifacts";
-import { formatDate, getArtifactKey, getFilename, getRepositoryKey, getRepositoryName } from "../utils/artifacts";
+import {
+  formatDate,
+  getArtifactKey,
+  getArtifactSource,
+  getFilename,
+  getRepositoryKey,
+  getRepositoryName,
+} from "../utils/artifacts";
 import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactModal } from "./ArtifactModal";
 import { AssetsSidebar } from "./AssetsSidebar";
@@ -13,11 +21,18 @@ import { EmptyAssetsState } from "./EmptyAssetsState";
 import { PageTitle } from "./PageTitle";
 
 type Filter = "all" | MediaKind;
+type SourceFilter = "all" | ArtifactSource;
 
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "image", label: "Media" },
   { id: "video", label: "Videos" },
+];
+
+const SOURCE_FILTERS: Array<{ id: SourceFilter; label: string }> = [
+  { id: "all", label: "All sources" },
+  { id: "cloud", label: "Cloud" },
+  { id: "local", label: "Local" },
 ];
 
 export function ArtifactGallery() {
@@ -32,6 +47,7 @@ export function ArtifactGallery() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRepositoryKey, setSelectedRepositoryKey] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   const loadArtifacts = useCallback(async (refresh = false) => {
     setError(undefined);
@@ -42,18 +58,36 @@ export function ArtifactGallery() {
     }
 
     try {
-      const url = refresh ? "/api/artifacts?refresh=true" : "/api/artifacts";
-      const response = await fetch(url);
-      const data = (await response.json()) as ArtifactListResponse | ApiErrorResponse;
+      const query = refresh ? "?refresh=true" : "";
+      const results = await Promise.allSettled([
+        fetchArtifactList(`/api/artifacts${query}`),
+        fetchArtifactList(`/api/local-assets${query}`),
+      ]);
+      const items: GalleryArtifact[] = [];
+      const cachedAts: string[] = [];
+      const errors: string[] = [];
 
-      if (!response.ok) {
-        throw new Error("error" in data ? data.error : "Failed to load artifacts.");
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          items.push(...result.value.items);
+          if (result.value.cachedAt) {
+            cachedAts.push(result.value.cachedAt);
+          }
+        } else {
+          errors.push(result.reason instanceof Error ? result.reason.message : "Failed to load artifacts.");
+        }
       }
 
-      if ("items" in data) {
-        setArtifacts(data.items);
-        setCachedAt(data.cachedAt);
+      if (items.length === 0 && errors.length === results.length) {
+        throw new Error(errors.join(" "));
       }
+
+      if (errors.length > 0) {
+        console.warn("Some asset sources failed to load:", errors);
+      }
+
+      setArtifacts(items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
+      setCachedAt(cachedAts.sort((left, right) => right.localeCompare(left))[0]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load artifacts.");
     } finally {
@@ -68,7 +102,10 @@ export function ArtifactGallery() {
 
   const kindAndQueryFiltered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    let items = filter === "all" ? artifacts : artifacts.filter(artifact => artifact.kind === filter);
+    let items = sourceFilter === "all"
+      ? artifacts
+      : artifacts.filter(artifact => getArtifactSource(artifact) === sourceFilter);
+    items = filter === "all" ? items : items.filter(artifact => artifact.kind === filter);
 
     if (normalized) {
       items = items.filter(artifact => {
@@ -84,7 +121,7 @@ export function ArtifactGallery() {
     }
 
     return items;
-  }, [artifacts, filter, query]);
+  }, [artifacts, filter, query, sourceFilter]);
 
   const filteredArtifacts = useMemo(() => {
     if (!selectedRepositoryKey) {
@@ -110,7 +147,7 @@ export function ArtifactGallery() {
 
     requestAnimationFrame(() => {
       const element = document.getElementById(
-        `artifact-${artifact.agentId}-${encodeURIComponent(artifact.path)}`,
+        `artifact-${encodeURIComponent(getArtifactKey(artifact))}`,
       );
       element?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -141,6 +178,11 @@ export function ArtifactGallery() {
     },
     [openModal],
   );
+
+  const handleSourceFilterChange = useCallback((source: SourceFilter) => {
+    setSourceFilter(source);
+    setSelectedRepositoryKey(null);
+  }, []);
 
   const closeModal = useCallback(() => {
     setModalArtifact(null);
@@ -184,10 +226,11 @@ export function ArtifactGallery() {
             loading={loading || refreshing}
             query={query}
             selectedRepositoryKey={selectedRepositoryKey}
-            onFilterChange={setFilter}
+            sourceFilter={sourceFilter}
             onQueryChange={setQuery}
             onSelect={handleSidebarSelect}
             onRepositorySelect={setSelectedRepositoryKey}
+            onSourceFilterChange={handleSourceFilterChange}
             collapsed={!sidebarOpen}
             onToggleSidebar={() => setSidebarOpen(open => !open)}
           />
@@ -209,31 +252,20 @@ export function ArtifactGallery() {
                   </p>
                 </div>
 
-                <div className="flex rounded-lg border border-[#e5e5e5] bg-[#f3f3f3] p-1 lg:hidden">
-                  {FILTERS.map(option => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setFilter(option.id)}
-                      className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                        filter === option.id
-                          ? "bg-white text-[#1e1e1e] shadow-sm"
-                          : "text-[#6f6f6f] hover:text-[#1e1e1e]"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-2 sm:flex-row lg:hidden">
+                  <SegmentedControl
+                    options={SOURCE_FILTERS}
+                    value={sourceFilter}
+                    onChange={handleSourceFilterChange}
+                  />
+                  <SegmentedControl options={FILTERS} value={filter} onChange={setFilter} />
                 </div>
               </div>
 
               {error ? <ErrorState message={error} /> : null}
 
               {loading ? (
-                <StatusCard
-                  title="Scanning cloud agents"
-                  body="Checking recent agents for image and video artifacts."
-                />
+                <GallerySkeleton />
               ) : filteredArtifacts.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredArtifacts.map(artifact => (
@@ -249,7 +281,7 @@ export function ArtifactGallery() {
                 <EmptyAssetsState
                   subtitle={
                     artifacts.length === 0
-                      ? "Only image and video files under each agent's artifacts/ directory appear here."
+                      ? "Cloud artifacts and local Cursor images under ~/.cursor/projects/*/assets/ appear here."
                       : "Try another folder or search term."
                   }
                 />
@@ -274,6 +306,78 @@ export function ArtifactGallery() {
   );
 }
 
+function GallerySkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      aria-label="Loading assets"
+      aria-busy="true"
+    >
+      {Array.from({ length: 12 }, (_, index) => (
+        <SkeletonCard key={index} />
+      ))}
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <article className="overflow-hidden rounded-xl border border-[#e5e5e5] bg-[#f9f9f9]">
+      <div className="relative aspect-video overflow-hidden bg-[#eeeeee]">
+        <div className="absolute inset-0 animate-modal-skeleton-shimmer bg-gradient-to-r from-[#eeeeee] via-[#f7f7f7] to-[#eeeeee] bg-[length:200%_100%]" />
+      </div>
+      <div className="space-y-2 p-3">
+        <div className="h-3 w-3/4 rounded bg-[#e8e8e8]" />
+        <div className="h-2.5 w-1/2 rounded bg-[#eeeeee]" />
+      </div>
+    </article>
+  );
+}
+
+async function fetchArtifactList(url: string): Promise<ArtifactListResponse> {
+  const response = await fetch(url);
+  const data = (await response.json()) as ArtifactListResponse | ApiErrorResponse;
+
+  if (!response.ok) {
+    throw new Error("error" in data ? data.error : "Failed to load artifacts.");
+  }
+
+  if (!("items" in data)) {
+    throw new Error("Failed to load artifacts.");
+  }
+
+  return data;
+}
+
+function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ id: T; label: string }>;
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-[#e5e5e5] bg-[#f3f3f3] p-1">
+      {options.map(option => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            value === option.id
+              ? "bg-white text-[#1e1e1e] shadow-sm"
+              : "text-[#6f6f6f] hover:text-[#1e1e1e]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ErrorState({ message }: { message: string }) {
   return (
     <section className="rounded-md border border-red-200 bg-red-50 p-5 text-left text-red-900">
@@ -283,11 +387,3 @@ function ErrorState({ message }: { message: string }) {
   );
 }
 
-function StatusCard({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-xl border border-[#e5e5e5] bg-[#f9f9f9] p-10 text-center">
-      <h2 className="text-xl font-semibold text-[#1e1e1e]">{title}</h2>
-      <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-[#6f6f6f]">{body}</p>
-    </section>
-  );
-}

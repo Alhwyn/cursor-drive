@@ -19,7 +19,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
 
   useEffect(() => {
     setLoaded(false);
-  }, [artifact.agentId, artifact.path, downloadUrl]);
+  }, [artifact.agentId, artifact.path, artifact.source, downloadUrl]);
 
   useEffect(() => {
     if (!open) {
@@ -113,7 +113,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
           >
             {artifact.kind === "image" ? (
               <img
-                key={artifact.path}
+                key={`${artifact.source ?? "cloud"}:${artifact.path}`}
                 src={downloadUrl}
                 alt={filename}
                 onLoad={() => setLoaded(true)}
@@ -127,7 +127,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
               />
             ) : (
               <video
-                key={artifact.path}
+                key={`${artifact.source ?? "cloud"}:${artifact.path}`}
                 src={downloadUrl}
                 controls
                 autoPlay

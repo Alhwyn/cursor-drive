@@ -1,5 +1,5 @@
 import type { GalleryArtifact } from "../types/artifacts";
-import { getDownloadUrl, getFilename } from "../utils/artifacts";
+import { getArtifactKey, getDownloadUrl, getFilename } from "../utils/artifacts";
 
 interface ArtifactCardProps {
   artifact: GalleryArtifact;
@@ -13,7 +13,7 @@ export function ArtifactCard({ artifact, selected = false, onOpen }: ArtifactCar
 
   return (
     <article
-      id={`artifact-${artifact.agentId}-${encodeURIComponent(artifact.path)}`}
+      id={`artifact-${encodeURIComponent(getArtifactKey(artifact))}`}
       className={`overflow-hidden rounded-xl border bg-[#f9f9f9] transition hover:border-[#d4d4d4] ${
         selected ? "border-[#a3a3a3] ring-2 ring-[#a3a3a3]/15" : "border-[#e5e5e5]"
       }`}

@@ -10,6 +10,7 @@ import { ArtifactCard } from "./ArtifactCard";
 import { ArtifactModal } from "./ArtifactModal";
 import { AssetsSidebar } from "./AssetsSidebar";
 import { EmptyAssetsState } from "./EmptyAssetsState";
+import { PageTitle } from "./PageTitle";
 
 type Filter = "all" | MediaKind;
 
@@ -174,7 +175,7 @@ export function ArtifactGallery() {
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside
           className={`hidden shrink-0 border-r border-[#e0e0e0] lg:block ${
-            sidebarOpen ? "w-[260px]" : "w-[78px]"
+            sidebarOpen ? "w-[260px]" : "w-[52px]"
           }`}
         >
           <AssetsSidebar
@@ -197,10 +198,10 @@ export function ArtifactGallery() {
             <section className="space-y-6 text-left">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-[#1e1e1e]">
+                  <PageTitle>
                     {selectedRepositoryName ??
                       (filter === "all" ? "All assets" : filter === "image" ? "Media" : "Videos")}
-                  </h1>
+                  </PageTitle>
                   <p className="text-[15px] leading-6 text-[#6f6f6f]">
                     {cachedAt
                       ? `${filteredArtifacts.length} items · Last scanned ${formatDate(cachedAt)}`

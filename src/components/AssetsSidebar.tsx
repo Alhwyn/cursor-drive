@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import type { GalleryArtifact, MediaKind } from "../types/artifacts";
 import { formatRelativeTime, getArtifactKey, getDownloadUrl, getFilename, getRepositoryKey } from "../utils/artifacts";
 
@@ -32,6 +42,14 @@ interface AssetsSidebarProps {
 }
 
 const FOLDER_PREVIEW_LIMIT = 12;
+const PREVIEW_WIDTH = 220;
+const PREVIEW_PADDING = 16;
+const PREVIEW_MEDIA_WIDTH = PREVIEW_WIDTH - PREVIEW_PADDING;
+const PREVIEW_MEDIA_MIN_HEIGHT = 72;
+const PREVIEW_MEDIA_MAX_HEIGHT = 160;
+const PREVIEW_MEDIA_DEFAULT_HEIGHT = Math.round((PREVIEW_MEDIA_WIDTH * 9) / 16);
+const PREVIEW_OFFSET = 12;
+const PREVIEW_VIEWPORT_PADDING = 8;
 
 export function AssetsSidebar({
   artifacts,
@@ -51,15 +69,19 @@ export function AssetsSidebar({
   const [expandedContexts, setExpandedContexts] = useState<Record<string, boolean>>({});
   const [showAllContexts, setShowAllContexts] = useState<Record<string, boolean>>({});
   const [hoveredArtifact, setHoveredArtifact] = useState<GalleryArtifact | null>(null);
+  const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null);
   const hoverClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showPreview = (artifact: GalleryArtifact) => {
+  const showPreview = (artifact: GalleryArtifact, position?: { x: number; y: number }) => {
     if (hoverClearTimeoutRef.current) {
       clearTimeout(hoverClearTimeoutRef.current);
       hoverClearTimeoutRef.current = null;
     }
 
     setHoveredArtifact(artifact);
+    if (position) {
+      setPreviewPosition(position);
+    }
   };
 
   const scheduleHidePreview = () => {
@@ -69,6 +91,7 @@ export function AssetsSidebar({
 
     hoverClearTimeoutRef.current = setTimeout(() => {
       setHoveredArtifact(null);
+      setPreviewPosition(null);
       hoverClearTimeoutRef.current = null;
     }, 120);
   };
@@ -111,7 +134,7 @@ export function AssetsSidebar({
     <div className="flex h-full flex-col bg-[#f3f3f3] text-[13px] font-normal text-[#1e1e1e]">
       <div
         className={`flex w-full shrink-0 ${
-          collapsed ? "flex-col items-center px-2 py-2.5" : "items-center px-2.5 py-2"
+          collapsed ? "flex-col items-center px-1 py-2" : "items-center px-2.5 py-2"
         }`}
       >
         <div
@@ -119,12 +142,11 @@ export function AssetsSidebar({
             collapsed ? "flex-col items-center gap-0.5" : "flex-row items-center gap-0.5"
           }`}
         >
-          <ToolbarButton label="Toggle sidebar" onClick={onToggleSidebar} collapsed={collapsed}>
+          <ToolbarButton label="Toggle sidebar" onClick={onToggleSidebar}>
             <SidebarIcon />
           </ToolbarButton>
           <ToolbarButton
             label="Search assets"
-            collapsed={collapsed}
             onClick={() => {
               if (collapsed) {
                 onToggleSidebar?.();
@@ -155,7 +177,7 @@ export function AssetsSidebar({
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="relative min-h-0 flex-1">
-          <div className="h-full min-h-0 overflow-y-auto px-1.5 pb-3">
+          <div className="sidebar-scroll h-full min-h-0 overflow-y-auto px-1.5 pb-3">
         <div className="px-1.5 py-1">
           <span className="text-[13px] font-medium text-[#1e1e1e]">Workspaces</span>
         </div>
@@ -217,7 +239,7 @@ export function AssetsSidebar({
                             key={getArtifactKey(artifact)}
                             artifact={artifact}
                             onSelect={() => onSelect(artifact)}
-                            onHover={() => showPreview(artifact)}
+                            onHover={position => showPreview(artifact, position)}
                             onHoverEnd={scheduleHidePreview}
                           />
                         ),
@@ -248,14 +270,20 @@ export function AssetsSidebar({
           />
         </div>
 
-        {hoveredArtifact ? (
-          <SidebarMediaPreview
-            artifact={hoveredArtifact}
-            onHover={() => showPreview(hoveredArtifact)}
-            onHoverEnd={scheduleHidePreview}
-          />
-        ) : null}
       </div>
+
+      {hoveredArtifact && previewPosition
+        ? createPortal(
+            <SidebarMediaPreview
+              artifact={hoveredArtifact}
+              cursorX={previewPosition.x}
+              cursorY={previewPosition.y}
+              onHover={() => showPreview(hoveredArtifact)}
+              onHoverEnd={scheduleHidePreview}
+            />,
+            document.body,
+          )
+        : null}
         </>
       )}
     </div>
@@ -347,18 +375,26 @@ function WorkspaceFileRow({
 }: {
   artifact: GalleryArtifact;
   onSelect: () => void;
-  onHover?: () => void;
+  onHover?: (position: { x: number; y: number }) => void;
   onHoverEnd?: () => void;
 }) {
   const filename = getFilename(artifact.path);
+
+  const reportHoverPosition = (event: MouseEvent<HTMLButtonElement>) => {
+    onHover?.({ x: event.clientX, y: event.clientY });
+  };
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      onMouseEnter={onHover}
+      onMouseEnter={reportHoverPosition}
+      onMouseMove={reportHoverPosition}
       onMouseLeave={onHoverEnd}
-      onFocus={onHover}
+      onFocus={event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        onHover?.({ x: rect.right, y: rect.top + rect.height / 2 });
+      }}
       onBlur={onHoverEnd}
       title={filename}
       className="flex w-full items-center gap-2 rounded-md py-0.5 pr-2 pl-1 text-left font-normal transition hover:bg-[#ebebeb]"
@@ -371,21 +407,96 @@ function WorkspaceFileRow({
   );
 }
 
+function getMediaAspectRatio(target: HTMLImageElement | HTMLVideoElement): number | null {
+  const width = target instanceof HTMLVideoElement ? target.videoWidth : target.naturalWidth;
+  const height = target instanceof HTMLVideoElement ? target.videoHeight : target.naturalHeight;
+
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return width / height;
+}
+
+function getPreviewMediaHeight(aspectRatio: number | null): number {
+  if (!aspectRatio) {
+    return PREVIEW_MEDIA_DEFAULT_HEIGHT;
+  }
+
+  const {Math.round(
+    Math.min(
+      PREVIEW_MEDIA_MAX_HEIGHT,
+      Math.max(PREVIEW_MEDIA_MIN_HEIGHT, PREVIEW_MEDIA_WIDTH / aspectRatio),
+    ),
+  )};
+}
+
 function SidebarMediaPreview({
   artifact,
+  cursorX,
+  cursorY,
   onHover,
   onHoverEnd,
 }: {
   artifact: GalleryArtifact;
+  cursorX: number;
+  cursorY: number;
   onHover: () => void;
   onHoverEnd: () => void;
 }) {
+  const previewRef = useRef<HTMLElement>(null);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [mediaAspectRatio, setMediaAspectRatio] = useState<number | null>(null);
   const downloadUrl = getDownloadUrl(artifact);
   const filename = getFilename(artifact.path);
+  const mediaHeight = getPreviewMediaHeight(mediaAspectRatio);
+
+  useEffect(() => {
+    setMediaAspectRatio(null);
+  }, [artifact.agentId, artifact.path]);
+
+  const handleMediaLoad = (event: SyntheticEvent<HTMLImageElement | HTMLVideoElement>) => {
+    const aspectRatio = getMediaAspectRatio(event.currentTarget);
+    if (aspectRatio) {
+      setMediaAspectRatio(aspectRatio);
+    }
+  };
+
+  useLayoutEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) {
+      return;
+    }
+
+    const rect = preview.getBoundingClientRect();
+    let left = cursorX + PREVIEW_OFFSET;
+    let top = cursorY + PREVIEW_OFFSET;
+
+    if (left + rect.width + PREVIEW_VIEWPORT_PADDING > window.innerWidth) {
+      left = cursorX - rect.width - PREVIEW_OFFSET;
+    }
+
+    if (top + rect.height + PREVIEW_VIEWPORT_PADDING > window.innerHeight) {
+      top = cursorY - rect.height - PREVIEW_OFFSET;
+    }
+
+    left = Math.max(
+      PREVIEW_VIEWPORT_PADDING,
+      Math.min(left, window.innerWidth - rect.width - PREVIEW_VIEWPORT_PADDING),
+    );
+    top = Math.max(
+      PREVIEW_VIEWPORT_PADDING,
+      Math.min(top, window.innerHeight - rect.height - PREVIEW_VIEWPORT_PADDING),
+    );
+
+    setPosition({ left, top });
+  }, [cursorX, cursorY, artifact.agentId, artifact.path]);
 
   return (
     <section
-      className="shrink-0 border-t border-[#e0e0e0] bg-[#f3f3f3] p-2"
+      ref={previewRef}
+      className="pointer-events-auto fixed z-50 w-[220px] rounded-md border border-[#e0e0e0] bg-[#f3f3f3] p-2 shadow-lg"
+      style={{ left: position.left, top: position.top, width: PREVIEW_WIDTH }}
       onMouseEnter={onHover}
       onMouseLeave={onHoverEnd}
     >
@@ -445,14 +556,12 @@ function ToolbarButton({
   onClick,
   disabled,
   active,
-  collapsed,
 }: {
   label: string;
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
-  collapsed?: boolean;
 }) {
   return (
     <button
@@ -460,9 +569,7 @@ function ToolbarButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`grid place-items-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        collapsed ? "size-8 w-11" : "size-7"
-      } ${
+      className={`grid size-7 place-items-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? "bg-[#e4e4e4] text-[#1e1e1e]"
           : "text-[#6f6f6f] hover:bg-[#e8e8e8] hover:text-[#1e1e1e]"

@@ -61,7 +61,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex p-2 sm:p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-label={filename}
@@ -74,7 +74,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
       />
 
       <div
-        className="animate-modal-panel-in relative flex h-full w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="animate-modal-panel-in relative flex w-full max-w-4xl max-h-[min(90vh,720px)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-[#ececec] px-4 py-2.5">
@@ -103,7 +103,7 @@ export function ArtifactModal({ artifact, open, onClose, onPrevious, onNext }: A
           </div>
         </header>
 
-        <div className="relative min-h-0 flex-1 bg-[#111]">
+        <div className="relative h-[min(55vh,480px)] min-h-[200px] shrink-0 bg-[#111]">
           {!loaded ? <ModalMediaSkeleton /> : null}
 
           <div
